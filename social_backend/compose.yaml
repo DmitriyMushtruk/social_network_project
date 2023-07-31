@@ -8,3 +8,25 @@ services:
       - .:/project_backend
     ports:
       - '8000:8000'
+    depends_on:
+      - pgdb
+      
+  pgdb:
+    image: postgres
+    restart: always
+    environment:
+      - POSTGRES_DB=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    container_name: pgdb
+    volumes:
+      - pgdbdata:/var/lib/postgresql/data/
+
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - 8080:8080
+
+volumes:
+  pgdbdata: null
