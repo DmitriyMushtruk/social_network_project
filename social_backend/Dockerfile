@@ -46,6 +46,4 @@ RUN chmod +x /project_backend/entrypoint.sh
 COPY . .
 
 # Run entrypoint.sh
-RUN dos2unix /project_backend/entrypoint.sh
-
 ENTRYPOINT ["/project_backend/entrypoint.sh"]
