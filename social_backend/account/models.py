@@ -19,7 +19,7 @@ class User(AbstractUser):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     email = models.EmailField(_("email address"), unique=True)
     image_s3_path = models.CharField(max_length=200, null=True, blank=True)
-    role = models.CharField(max_length=9, choices=Roles.choices)
+    role = models.CharField(max_length=9, choices=Roles.choices, default=Roles.USER)
     
     username = models.CharField(max_length=80)
     is_blocked = models.BooleanField(default=False)
@@ -52,14 +52,3 @@ class Profile(models.Model):
     @property
     def filename(self):
         return os.path.basename(self.image.name)
-
-
-
-
-
-class MyModel(models.Model):
-    id = models.AutoField(primary_key=True)
-    phone = models.CharField(max_length=20)
-
-    def __str__(self):
-        return self.phone

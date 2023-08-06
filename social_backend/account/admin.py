@@ -2,11 +2,9 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 
 from .forms import CustomUserChangeForm, CustomUserCreationForm
-from .models import User, MyModel, Profile
+from .models import User, Profile
 
-# Register your models here.
 #admin.site.register(User)
-admin.site.register(MyModel)
 
 class ProfileInline(admin.StackedInline):
     model = Profile
