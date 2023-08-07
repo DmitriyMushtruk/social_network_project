@@ -20,9 +20,9 @@ ENV DJANGO_ENV=${DJANGO_ENV} \
   POETRY_VIRTUALENVS_CREATE=false \
   POETRY_CACHE_DIR='/var/cache/pypoetry'
 
-RUN apk update && apk add nmap-ncat
-
-RUN apk --update add bash && \
+RUN apk update && \
+    apk add nmap-ncat && \
+    apk --update add bash && \
     apk add dos2unix
 
 RUN pip install "poetry==$POETRY_VERSION" && poetry --version
