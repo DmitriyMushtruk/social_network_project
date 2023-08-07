@@ -28,7 +28,6 @@ class User(AbstractUser):
     last_login = models.DateTimeField(blank=True, null=True)
 
     USERNAME_FIELD = "email"
-    EMAIL_FIELD = "email"
     REQUIRED_FIELDS = ["username"]
 
     objects = CustomUserManager()
@@ -38,7 +37,7 @@ class User(AbstractUser):
     
 class Profile(models.Model):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    avatar = models.ImageField(upload_to=get_image_filename, blank=True)
+    avatar = models.ImageField(upload_to='media', blank=True)
     bio = models.CharField(max_length=200, blank=True)
 
     def __str__(self):
