@@ -36,11 +36,6 @@ class User(AbstractUser):
     def __str__(self):
         return self.email
     
-def get_image_filename(instance, filename):
-    name = instance.product.name
-    slug = slugify(name)
-    return f"products/{slug}-{filename}"
-
 class Profile(models.Model):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     avatar = models.ImageField(upload_to=get_image_filename, blank=True)
