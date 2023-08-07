@@ -13,8 +13,6 @@ from .serializers import user_serializer
 #from .serializers.user_serializer import UserSerializer
 from .models import User, Profile
 
-User = get_user_model()
-
 class UserRegisterationAPIView(GenericAPIView):
     permission_classes = (AllowAny,)
     serializer_class = user_serializer.UserRegisterationSerializer

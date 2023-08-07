@@ -8,7 +8,6 @@ from account import views
 app_name = "account"
 
 urlpatterns = [
-    #path('', views.hello, name='hello'),
     path('users/', views.UserListView.as_view(), name='user-list'),
     path('users/<uuid:pk>/', views.UserDetailView.as_view(), name='user-detail'),
     path("register/", views.UserRegisterationAPIView.as_view(), name="create-user"),
@@ -17,5 +16,4 @@ urlpatterns = [
     path("logout/", views.UserLogoutAPIView.as_view(), name="logout-user"),
     path("", views.UserAPIView.as_view(), name="user-info"),
     path("profile/", views.UserProfileAPIView.as_view(), name="user-profile"),
-    path("profile/avatar/", views.UserAvatarAPIView.as_view(), name="user-avatar"),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
