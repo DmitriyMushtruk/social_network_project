@@ -71,16 +71,6 @@ class UserProfileAPIView(RetrieveUpdateAPIView):
     def get_object(self):
         return self.request.user.profile
     
-class UserAvatarAPIView(RetrieveUpdateAPIView):
-    queryset = Profile.objects.all()
-    serializer_class = user_serializer.ProfileAvatarSerializer
-    permission_classes = (IsAuthenticated,)
-
-    def get_object(self):
-        return self.request.user.profile
-
-
-
 class UserListView(generics.ListCreateAPIView):
     queryset = User.objects.all()
     serializer_class = user_serializer.UserSerializer
