@@ -76,6 +76,3 @@ class UserListView(generics.ListCreateAPIView):
 class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = User.objects.all()
     serializer_class = user_serializer.UserSerializer
-
-def hello(request):
-    return HttpResponse("Hello World...")
