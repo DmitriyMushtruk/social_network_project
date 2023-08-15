@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from ..models import Page, Tag
+from ..models import Page, Tag, Post, Comment
 
 class TagListSerializer(serializers.ModelSerializer):
     class Meta:
@@ -41,3 +41,26 @@ class CreateOrUpdatePageSerializer(serializers.ModelSerializer):
 
         validated_data['owner'] = self.context['request'].user  # Set page owner
         return super().create(validated_data)
+
+
+class CommentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Comment
+        fields = ['author', 'content', 'created_date', 'post']
+
+class PostSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Post
+        fields =    "__all__"
+
+
+class CreateOrUpdatePostSerializer(serializers.ModelSerializer):
+    page_name = serializers.CharField(source='page.name', read_only=True)
+    post_comments = CommentSerializer(many=True, read_only=True, source='comments')
+
+    likes = serializers.CharField(source='get_likes_count', read_only=True)
+    dislikes = serializers.CharField(source='get_dislikes_count', read_only=True)
+    class Meta:
+        model = Post
+        fields = ['page', 'page_name', 'content', 'file', 'comments', 'created_at', 'updated_at', 'likes', 'dislikes', 'post_comments']
+
