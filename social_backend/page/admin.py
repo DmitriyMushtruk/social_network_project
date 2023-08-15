@@ -1,8 +1,12 @@
 from django.contrib import admin
 
-from .models import Tag, Page
+from .models import Tag, Page, Post, Comment, Like, Dislike
 
 admin.site.register(Tag)
+admin.site.register(Post)
+admin.site.register(Comment)
+admin.site.register(Like)
+admin.site.register(Dislike)
 
 class TagInline(admin.StackedInline):
     model = Tag

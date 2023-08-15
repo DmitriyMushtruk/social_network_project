@@ -9,7 +9,7 @@ class Tag(models.Model):
         return self.name
 
 class Page(models.Model):
-    name = models.CharField(max_length=80)
+    name = models.CharField(max_length=80, unique=True)
     owner = models.ForeignKey('account.User', on_delete=models.CASCADE, related_name='pages', blank=False)
     uuid = models.CharField(max_length=30, unique=True)
     description = models.TextField()
@@ -32,3 +32,41 @@ class Page(models.Model):
     
     def __str__(self):
         return f"{self.name}"
+
+class Post(models.Model):
+    page = models.ForeignKey(Page, on_delete=models.CASCADE, related_name='posts')
+    content = models.CharField(max_length=280)
+    file = models.URLField(null=True, blank=True)
+
+    comments = models.ManyToManyField('Comment', related_name='comments', blank=True)
+    reply_to = models.ForeignKey('Post', on_delete=models.SET_NULL, null=True, related_name='replies', blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def get_likes_count(self):
+        return self.likes.count()
+
+    def get_dislikes_count(self):
+        return self.dislikes.count()
+
+    def __str__(self):
+        return self.content
+    
+class Comment(models.Model):
+    content = models.TextField(max_length=180)
+    author = models.ForeignKey(Page, on_delete=models.CASCADE, to_field='name')
+    post = models.ForeignKey(Post, on_delete=models.CASCADE, blank=False, null=True)
+    created_date = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Comment by {self.author} on {self.created_date}"
+    
+class Like(models.Model):
+    author = models.ForeignKey(Page, on_delete=models.CASCADE, to_field='name', default='Unknown')
+    post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='likes')
+
+class Dislike(models.Model):
+    author = models.ForeignKey(Page, on_delete=models.CASCADE, to_field='name', default='Unknown')
+    post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='dislikes')
+   
