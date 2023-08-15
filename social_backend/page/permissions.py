@@ -31,3 +31,17 @@ from .models import Page
     # Сейчас если страница приватная то у меня нету прав ее смотреть.
     # Есть вариант сохранять в сессии инфу о том какую страницу юзер выбрал после авторизации
     # но это уже на стороне фронта, так как писать эти permissions?
+
+class CanDeletePostPermission(permissions.BasePermission):
+    def has_permission(self, request, view):
+        if request.user.has_perm('page.delete_post'):
+            return True
+        
+        if request.user == view.get_object().page.owner:
+            return True
+        
+        user_role = request.user.role
+        if user_role in ['moderator', 'admin']:
+            return True
+        
+        return False
