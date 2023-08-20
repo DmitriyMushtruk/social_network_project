@@ -1,13 +1,14 @@
-from rest_framework import permissions, status, viewsets
+from rest_framework import permissions, status, viewsets, mixins
+from django.shortcuts import get_object_or_404
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.http import HttpResponseForbidden, HttpResponseBadRequest
 from rest_framework.decorators import action
-# from .permissions import CanViewPrivatePage # Пока что не используеться тк, нету возможности протестировать
-
+from rest_framework import status
 
 from .models import Page, Tag, Post, Comment, Like, Dislike
 from .serializers import page_serializer
+from . import page_permissions
 
 def select_page(request, page_id):
     selected_page = Page.objects.get(id=page_id)
@@ -29,34 +30,42 @@ class UserPageListViewSet(viewsets.ReadOnlyModelViewSet):
     lookup_field = "name"
 
     def get_queryset(self):
-        #Return only pages owned by the current user
         return Page.objects.filter(owner=self.request.user)
     
+    # def list(self, request, *args, **kwargs):
+    #     queryset = self.filter_queryset(self.get_queryset())
+    #     serializer = self.get_serializer(queryset, many=True)
+    #     return Response(serializer.data)
+
+# Сделать проверку что пользователь подписан на страницу (если она приватная), если он пытаеться просмотреть страницы и ее посты 
 class PageViewSet(viewsets.ModelViewSet):
     queryset = Page.objects.all()
-    #serializer_class = get_serializer_class(self)
     permission_classes = [permissions.IsAuthenticated]
+    serializer_class = page_serializer.PageSerializer
     lookup_field = "name"
 
-    def get_serializer_class(self):
-        if self.action in ['create', 'update']:
-            return page_serializer.CreateOrUpdatePageSerializer
-        else:
-            return page_serializer.PageSerializer
+    def get_queryset(self):
+        name = self.kwargs.get('name')
+        print("kwargs id", self.kwargs.get("name"))
+        return Page.objects.prefetch_related('posts').filter(name=name).first()
     
+    def get_permissions(self):
+        if self.action in ['update', 'destroy']:
+            return [page_permissions.IsOwner()]
+        return super().get_permissions()
+        
     def retrieve(self, request, *args, **kwargs):
-        name = kwargs.get('name')
-        page = Page.objects.filter(name=name).first()
+        page = self.get_queryset()
 
+        if not page_permissions.CanViewPage().has_object_permission(request, self, page):
+            return Response({'detail': 'You are not follower of this PRIVATE page.'}, status=status.HTTP_403_FORBIDDEN)
+        
         if page:
-            posts = page.posts.all()
-            post_serializer = page_serializer.CreateOrUpdatePostSerializer(posts, many=True)
             serializer = self.get_serializer(page)
-            data = serializer.data
-            data['posts'] = post_serializer.data
-            return Response(data)
+            return Response(serializer.data)
         else:
             return Response({'detail': 'Page not found.'}, status=404)
+        
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -66,162 +75,153 @@ class PageViewSet(viewsets.ModelViewSet):
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
     
     def update(self, request, *args, **kwargs):
-        instance = self.get_object()
+        page = self.get_queryset()
 
-        # Checking if the current user is the owner of the page
-        if instance.owner != request.user:
-            return Response({'detail': 'You do not have permission to edit this page.'}, status=status.HTTP_403_FORBIDDEN)
-
-        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        if not page_permissions.IsOwner().has_object_permission(request, self, page):
+            return Response({'detail': 'You are not the owner of this page.'}, status=status.HTTP_403_FORBIDDEN)
+        
+        serializer = self.get_serializer(page, data=request.data, partial=True)
+        # serializer = self.get_serializer(page, data=request.data, partial=True) проверить хэндлиться ли все остальное через модел вью сет
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
 
-        if getattr(instance, '_prefetched_objects_cache', None):
-            instance._prefetched_objects_cache = {}
+        if getattr(page, '_prefetched_objects_cache', None):
+            page._prefetched_objects_cache = {}
 
         return Response(serializer.data)
     
     def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
-
-        if instance.owner != request.user:
-            return Response({'detail': 'You do not have permission to delete this page.'}, status=status.HTTP_403_FORBIDDEN)
-
-        self.perform_destroy(instance)
+        page = self.get_queryset()
+        self.perform_destroy(page)
         return Response(status=status.HTTP_204_NO_CONTENT)
     
     def perform_destroy(self, instance):
-            instance.delete()
+        instance.delete()
 
-class PostViewSet(viewsets.ModelViewSet):
-    queryset = Post.objects.all()
-    serializer_class = page_serializer.CreateOrUpdatePostSerializer
+    @action(detail=True, methods=['get', 'post', 'put', 'delete'])
+    def posts(self, request, name=None, pk=None):
+        page = self.get_queryset()
 
-    def retrieve(self, request, *args, **kwargs):
-        post = self.get_object()  # Получаем объект поста по идентификатору из URL
-        serializer = self.get_serializer(post)
+        if not page_permissions.CanViewPage().has_object_permission(request, self, page):
+            return Response({'detail': 'You are not follower of this PRIVATE page.'}, status=status.HTTP_403_FORBIDDEN)
+
+        if request.method == "GET":
+            if page:
+                if pk is not None:
+                    post = Post.objects.filter(page=page, pk=pk).first()
+                    print("POST IS: ", post)
+                    if not post:
+                        return Response({'detail': 'Post not found.'}, status=status.HTTP_404_NOT_FOUND)
         
-        return Response(serializer.data)
+                    serializer = page_serializer.PostSerializer(post)
+                    return Response(serializer.data)
+                else:
+                    posts = page.posts.all()
+                    serializer = page_serializer.PostSerializer(posts, many=True)
+                    return Response(serializer.data)
+            else:
+                return Response({'detail': 'Page not found.'}, status=404)
 
-    def create(self, request, *args, **kwargs):
-        selected_page = 1 # Времанная переменная
-        print("selected page id is: ", selected_page) #Test
-        print("request user is: ", request.user) #Test
-
-        # Тут должна быть логика для вычисления выбранной пользователем страницы (храним в session)
-        #selected_page = request.session.get('selected_page')
-
-        try:
-            selected_page = Page.objects.get(id=selected_page)
-            print("page owner is: ", selected_page.owner) #Test
-        except Page.DoesNotExist:
-            return Response({'error': 'Selected page not found.'}, status=status.HTTP_400_BAD_REQUEST)
+        elif request.method == 'POST':
+            if not page_permissions.IsOwner().has_object_permission(request, self, page):
+                return Response({'detail': 'You are not the owner of this page.'}, status=status.HTTP_403_FORBIDDEN)
+            
+            serializer = page_serializer.PostSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            serializer.save(page=page)
+            headers = self.get_success_headers(serializer.data)
+            return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
         
-        if selected_page.owner != request.user:
-            print(selected_page.owner, request.user)
-            return Response({'detail': 'You do not have permission to created post on this page.'}, status=status.HTTP_403_FORBIDDEN)
+        elif request.method == 'PUT' or request.method == 'DELETE':
+            if not page_permissions.IsOwner().has_object_permission(request, self, page):
+                return Response({'detail': 'You are not the owner of this page.'}, status=status.HTTP_403_FORBIDDEN)
+            
+            post = Post.objects.filter(page=page, pk=pk).first()
+            if not post:
+                return Response({'detail': 'Post not found.'}, status=status.HTTP_404_NOT_FOUND)
+            
+            if request.method == 'PUT':
+                serializer = page_serializer.PostSerializer(post, data=request.data)
+                serializer.is_valid(raise_exception=True)
+                serializer.save()
+                return Response(serializer.data)
+            elif request.method == 'DELETE':
+                post.delete()
+                return Response({'detail': 'Post has been deleted.'},status=status.HTTP_204_NO_CONTENT)
         
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save(page=selected_page)
-        headers = self.get_success_headers(serializer.data)
-        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
-    
-    def update(self, request, *args, **kwargs):
-        selected_page = 1 # Времанная переменная
-
-        # Тут должна быть логика для вычисления выбранной пользователем страницы (храним в session)
-        #selected_page = request.session.get('selected_page')
-
-        post = self.get_object()  # Получаем объект поста по идентификатору из URL
-
-        try:
-            selected_page = Page.objects.get(id=selected_page)
-            print("page owner is: ", selected_page.owner) #Test
-        except Page.DoesNotExist:
-            return Response({'error': 'Selected page not found.'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        if selected_page.owner != request.user:
-            return Response({'detail': 'You do not have permission to edit this post.'}, status=status.HTTP_403_FORBIDDEN)
-
-        serializer = self.get_serializer(post, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response(serializer.data)
-    
-    def destroy(self, request, *args, **kwargs):
-        selected_page = 1 # Времанная переменная
-
-        # Тут должна быть логика для вычисления выбранной пользователем страницы (храним в session)
-        #selected_page = request.session.get('selected_page')
-
-        post = self.get_object()
-
-        try:
-            selected_page = Page.objects.get(id=selected_page)
-            print("page owner is: ", selected_page.owner) #Test
-        except Page.DoesNotExist:
-            return Response({'error': 'Selected page not found.'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        if post.page.owner != request.user:
-            print("page owner is: ", post.page.owner )
-            return Response({'detail': 'You do not have permission to delete this post.'}, status=status.HTTP_403_FORBIDDEN)
-
-        self.perform_destroy(post)
-        return Response(status=status.HTTP_204_NO_CONTENT)
-
-    @action(detail=True, methods=['post'])
-    def like(self, request, pk=None):
-        selected_page = 1 # Времанная переменная
-        user_page = Page.objects.get(id=selected_page)  # Получаем страницу по временному идентификатору
-        post = self.get_object()
-        #user_page = request.user.page 
-
-        # Проверяем, есть ли уже отметка дизлайк от этого пользователя
-        existing_dislike = post.dislikes.filter(author=user_page).first()
-
-        if existing_dislike:
-            existing_dislike.delete()
-            post.likes.create(author=user_page)
-            return Response({"message": "Dislike removed, Like added"}, status=201)
-        if post.likes.filter(author=user_page).exists():
-            post.likes.filter(author=user_page).delete()
-            return Response({"message": "Like removed"}, status=200)
         else:
-            post.likes.create(author=user_page)
-            return Response({"message": "Like added"}, status=201)
-
+            return Response({'detail': 'Method not allowed.'}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+                
     @action(detail=True, methods=['post'])
-    def dislike(self, request, pk=None):
-        selected_page = 1 # Времанная переменная
-        user_page = Page.objects.get(id=selected_page)  # Получаем страницу по временному идентификатору
-        post = self.get_object()
-        #user_page = request.user.page
+    def follow(self, request, name=None):
+        page = self.get_queryset()
+        current_page = request.query_params.get('current_page')
 
-        # Проверяем, есть ли уже отметка лайк от этого пользователя
-        existing_like = post.likes.filter(author=user_page).first()
+        if page.is_private:
+            page.follow_requests.add(current_page)  # Добавляем в список ожидающих
+            return Response({'detail': 'Follow request sent successfully.'}, status=status.HTTP_200_OK)
 
-        if existing_like:
-            existing_like.delete()
-            post.dislikes.create(author=user_page)
-            return Response({"message": "Like removed, Dislike added"}, status=201)
-        if post.dislikes.filter(author=user_page).exists():
-            post.dislikes.filter(author=user_page).delete()
-            return Response({"message": "Dislike removed"}, status=200)
-        else:
-            post.dislikes.create(author=user_page)
-            return Response({"message": "Dislike added"}, status=201)
+        page.followers.add(current_page)  # Просто добавляем в подписчики
+        return Response({'detail': 'Followed successfully.'}, status=status.HTTP_200_OK)
     
     @action(detail=True, methods=['post'])
-    def add_comment(self, request, pk=None):
-        selected_page = 1  # Временная переменная
-        user_page = Page.objects.get(id=selected_page)  # Получаем страницу по временному идентификатору
-        post = self.get_object()
+    def unfollow(self, request, name=None):
+        page = self.get_queryset()
+        current_page = request.query_params.get('current_page')
 
-        comment_text = request.data.get('content')  # Получаем текст комментария из запроса
+        page.followers.remove(current_page)
+        return Response({'detail': 'Unfollowed successfully.'}, status=status.HTTP_200_OK)
 
-        # Создаем комментарий
-        comment = Comment.objects.create(post=post, author=user_page, content=comment_text)
-        serializer = page_serializer.CommentSerializer(comment)
 
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    # Доделать возможность принимать запросы и отклонять. Протестировать
+    @action(detail=True, methods=['post'])
+    def approve_request(self, request, name=None, pk=None):
+        page = self.get_object()
+
+        if not page_permissions.IsOwner().has_object_permission(request, self, page):
+            return Response({'detail': 'You are not the owner of this page.'}, status=status.HTTP_403_FORBIDDEN)
+
+        if page:
+            requester_page = page.follow_requests.filter(page=page, pk=pk).first()
+            if requester_page:
+                page.followers.add(requester_page)  # Добавляем в подписчики
+                page.follow_requests.remove(requester_page)  # Убираем из списка ожидающих
+                return Response({'detail': 'Request approved successfully.'}, status=status.HTTP_200_OK)
+            else:
+                return Response({'detail': 'Request not found.'}, status=status.HTTP_404_NOT_FOUND)
+        else:
+            return Response({'detail': 'Page not found.'}, status=404)
+
+    @action(detail=True, methods=['post'])
+    def reject_request(self, request, pk=None):
+        page = self.get_object()
+
+        if page.owner != request.user:
+            return Response({'detail': 'You do not have permission to reject requests.'}, status=status.HTTP_403_FORBIDDEN)
+
+        requester_page = page.follow_requests.filter(requester=request.user.page).first()
+        if requester_page:
+            page.follow_requests.remove(requester_page)  # Убираем из списка ожидающих
+            return Response({'detail': 'Request rejected successfully.'}, status=status.HTTP_200_OK)
+        else:
+            return Response({'detail': 'Request not found.'}, status=status.HTTP_404_NOT_FOUND)
+    
+
+    # Нужны ли делать проверку request.user == isAuntheficated? или лучше сделать в начале PageViewSet?
+    
+    @action(detail=True, methods=['post'])
+    def comment(self, request, name=None, pk=None):
+        page = self.get_queryset()
+        if page:
+            post = Post.objects.filter(page=page, pk=pk).first()
+            if not post:
+                return Response({'detail': 'Post not found.'}, status=status.HTTP_404_NOT_FOUND)
+            
+            comment_text = request.data.get('content')
+            user_page = Page.objects.get(id=request.user.current_page)
+
+            comment = Comment.objects.create(post=post, author=user_page, content=comment_text)
+            serializer = page_serializer.CommentSerializer(comment)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        else:
+            return Response({'detail': 'Page not found.'}, status=status.HTTP_404_NOT_FOUND)
