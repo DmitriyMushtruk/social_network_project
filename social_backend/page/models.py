@@ -22,11 +22,9 @@ class Page(models.Model):
     image = models.URLField(null=True, blank=True)
     unblock_date = models.DateTimeField(null=True, blank=True)
 
-    #Get number of page followers
     def count_followers(self):
         return self.followers.count()
     
-    #Get number of page follows
     def count_following(self):
         return Page.objects.filter(followers=self).count()
     
