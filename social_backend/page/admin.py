@@ -3,7 +3,6 @@ from django.contrib import admin
 from .models import Tag, Page, Post, Comment, Like, Dislike
 
 admin.site.register(Tag)
-admin.site.register(Post)
 admin.site.register(Comment)
 admin.site.register(Like)
 admin.site.register(Dislike)
@@ -23,3 +22,20 @@ class PageAdmin(admin.ModelAdmin):
 
     get_followers_count.short_description = 'Followers Count'
     get_following_count.short_description = 'Following Count'
+
+@admin.register(Post)
+class PostAdmin(admin.ModelAdmin):
+    list_display = ("get_post_id", "page", "get_likes_count", "get_dislikes_count")
+
+    def get_post_id(self, obj):
+        return obj.id
+
+    def get_likes_count(self, obj):
+        return obj.likes.count()
+
+    def get_dislikes_count(self, obj):
+        return obj.dislikes.count()
+
+    get_likes_count.short_description = 'Likes'
+    get_dislikes_count.short_description = 'Dislikes'
+    get_post_id.short_description = 'Post ID'
