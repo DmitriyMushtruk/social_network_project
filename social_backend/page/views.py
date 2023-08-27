@@ -1,6 +1,8 @@
 from rest_framework import permissions, status, viewsets
 from rest_framework.response import Response
 from rest_framework.decorators import action
+from rest_framework.views import APIView
+from rest_framework.exceptions import PermissionDenied, NotFound
 from rest_framework import status
 
 from .models import Page, Tag, Post, Comment
@@ -29,9 +31,36 @@ class PageViewSet(viewsets.ModelViewSet):
     lookup_field = "name"
 
     def get_queryset(self):
+        try:
+            current_page_id = self.request.query_params.get('current_page')
+            current_page = Page.objects.get(id=current_page_id)
+        except Page.DoesNotExist:
+            raise NotFound({"detail": "Page not found - 'current_page' is incorrect."})
+        
+        if not page_permissions.IsOwner().has_object_permission(self.request, self, current_page):
+            raise PermissionDenied({'detail': 'You are not the owner of this page.'})
+        
         name = self.kwargs.get('name')
-        return Page.objects.prefetch_related('posts').filter(name=name).first()
-    
+        page = Page.objects.filter(name=name).first()
+
+        if page == None:
+            raise NotFound({"detail": "Page not found"})
+        
+        posts = Post.objects.filter(page=page)
+
+        visible_posts = []
+        for post in posts:
+            if post.reply_to is not None:
+                original_post = Post.objects.get(id=post.reply_to_id)
+                if page_permissions.PostsPermissionsSet().has_object_permission(self.request, self, original_post):
+                    visible_posts.append(post)
+            else:
+                visible_posts.append(post)
+
+        self.visible_posts = visible_posts
+        return page
+
+    # Добавить сюда пермишены и интегрировать в код, если имееть смысл
     def get_permissions(self):
         if self.action in ['update', 'destroy']:
             return [page_permissions.IsOwner()]
@@ -43,11 +72,12 @@ class PageViewSet(viewsets.ModelViewSet):
         if not page_permissions.CanViewPage().has_object_permission(request, self, page):
             return Response({'detail': 'You are do not have permisiions to view this content. Must be: follower, owner, admin/moder.'}, status=status.HTTP_403_FORBIDDEN)
         
-        if page:
-            serializer = self.get_serializer(page)
+        try:
+            page = self.get_queryset()
+            serializer = page_serializer.PageSerializer(page, context={'visible_posts': self.visible_posts})
             return Response(serializer.data)
-        else:
-            return Response({'detail': 'Page not found.'}, status=404)
+        except Page.DoesNotExist:
+            return Response({'detail': 'Page not found.'}, status=status.HTTP_404_NOT_FOUND)
         
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -63,7 +93,6 @@ class PageViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'You are not the owner of this page.'}, status=status.HTTP_403_FORBIDDEN)
         
         serializer = self.get_serializer(page, data=request.data, partial=True)
-        # serializer = self.get_serializer(page, data=request.data, partial=True) проверить хэндлиться ли все остальное через модел вью сет
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
 
@@ -79,7 +108,7 @@ class PageViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'You are not the owner of this page.'}, status=status.HTTP_403_FORBIDDEN)
         
         self.perform_destroy(page)
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        return Response({"detail": "Page deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
     
     def perform_destroy(self, instance):
         instance.delete()
@@ -87,11 +116,15 @@ class PageViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def follow(self, request, name=None):
         page = self.get_queryset()
-        current_page = request.query_params.get('current_page')
 
+        current_page = Page.objects.get(id=request.query_params.get('current_page'))
+        
         if page.is_private:
             page.follow_requests.add(current_page)
             return Response({'detail': 'Follow request sent successfully.'}, status=status.HTTP_200_OK)
+        
+        if page.followers.filter(id=current_page.id).exists():
+            return Response({'detail': 'You are already following this page.'}, status=status.HTTP_400_BAD_REQUEST)
 
         page.followers.add(current_page)
         return Response({'detail': 'Followed successfully.'}, status=status.HTTP_200_OK)
@@ -99,7 +132,12 @@ class PageViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def unfollow(self, request, name=None):
         page = self.get_queryset()
-        current_page = request.query_params.get('current_page')
+
+        current_page = Page.objects.get(id=request.query_params.get('current_page'))
+
+        if not page.followers.filter(id=current_page.id).exists():
+            return Response({'detail': 'You are not following this page.'}, status=status.HTTP_400_BAD_REQUEST)
+
         page.followers.remove(current_page)
         return Response({'detail': 'Unfollowed successfully.'}, status=status.HTTP_200_OK)
 
