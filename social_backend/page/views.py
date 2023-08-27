@@ -343,3 +343,26 @@ class PostViewSet(CheckCurrentPageMixin, viewsets.ModelViewSet):
             post.dislikes.create(author=current_page)
             return Response({"message": "Dislike added"}, status=201)
 
+class FeedView(CheckCurrentPageMixin, APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get(self, request):
+        if not self.check_current_page(request) == None:
+            return self.check_current_page(request)
+        
+        current_page = Page.objects.get(id=request.query_params.get('current_page'))
+        
+        followed_pages = current_page.page_follows.all()
+        feeds_posts = Post.objects.filter(page__in=followed_pages).order_by('-created_at')
+
+        visible_posts = []
+        for post in feeds_posts:
+            if post.reply_to is not None:
+                original_post = Post.objects.get(id=post.reply_to_id)
+                if page_permissions.PostsPermissionsSet().has_object_permission(self.request, self, original_post):
+                    visible_posts.append(post)
+            else:
+                visible_posts.append(post)
+
+        serializer = page_serializer.PostSerializer(visible_posts, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
