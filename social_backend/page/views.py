@@ -253,7 +253,49 @@ class PostViewSet(CheckCurrentPageMixin, viewsets.ModelViewSet):
         
         post.delete()
         return Response({'detail': 'Post has been deleted.'}, status=status.HTTP_204_NO_CONTENT)
+    def comment(self, request, name=None, pk=None):
+        if not self.check_current_page(request) == None:
+            return self.check_current_page(request)
+        
+        current_page = Page.objects.get(pk = request.query_params.get('current_page'))
+
+        try:
+            post = Post.objects.get(pk=pk)
+        except Post.DoesNotExist:
+            return Response({'detail': 'Post not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if not page_permissions.PostsPermissionsSet().has_object_permission(request, self, post):
+            return Response({'detail': 'You do not have permissions to create content on this page. Must be: follower, owner, admin/moder.'}, status=status.HTTP_403_FORBIDDEN)
+        
+        comment_text = request.data.get('content')
+        comment = Comment.objects.create(post=post, author=current_page, content=comment_text)
+        serializer = page_serializer.CommentSerializer(comment)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
     
+    @action(detail=True, methods=['post'])
+    def repost(self, request, pk=None):
+        if not self.check_current_page(request) == None:
+            return self.check_current_page(request)
+        
+        current_page = Page.objects.get(pk = request.query_params.get('current_page'))
+
+        try:
+            original_post = Post.objects.get(pk=pk)
+        except Post.DoesNotExist:
+            return Response({'detail': 'Post not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if not page_permissions.PostsPermissionsSet().has_object_permission(request, self, original_post):
+            return Response({'detail': 'You do not have permissions to repost this content. Must be: follower, owner, admin/moder.'}, status=status.HTTP_403_FORBIDDEN)
+        
+        reposted_post = Post.objects.create(
+        page=current_page,
+        content=original_post.content,
+        file=original_post.file,
+        reply_to=original_post,
+        )
+
+        return Response({'detail': 'Reposted successfully.'}, status=status.HTTP_201_CREATED)
+
     # Та же история, что и с запросами на подписку. Не нравиться мне. Но чет не доходит, как сделать нормально.
     # Пока что вот так деревянно.
     @action(detail=True, methods=['post'])
@@ -300,3 +342,4 @@ class PostViewSet(CheckCurrentPageMixin, viewsets.ModelViewSet):
         else:
             post.dislikes.create(author=current_page)
             return Response({"message": "Dislike added"}, status=201)
+
