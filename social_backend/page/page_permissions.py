@@ -20,10 +20,12 @@ class CanViewPage(permissions.BasePermission):
                 return True
             elif user.role == User.Roles.MODERATOR or user.role == User.Roles.ADMIN:
                 return True
+            else:
+                return False
         else:
             return True
 
-class CanViewPost(permissions.BasePermission):
+class PostsPermissionsSet(permissions.BasePermission):
     def has_object_permission(self, request, view, obj):
         user = request.user
         if obj.page.is_private:
@@ -34,5 +36,7 @@ class CanViewPost(permissions.BasePermission):
                 return True
             elif  user.role == User.Roles.MODERATOR or user.role == User.Roles.ADMIN:
                 return True
+            else:
+                return False
         else:
             return True
