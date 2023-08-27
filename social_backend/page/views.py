@@ -8,8 +8,8 @@ from rest_framework import status
 from .models import Page, Tag, Post, Comment
 from .serializers import page_serializer
 from . import page_permissions
+from .mixins import CheckCurrentPageMixin
 
-    
 class TagListViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Tag.objects.all()
     serializer_class = page_serializer.TagListSerializer
@@ -23,7 +23,7 @@ class UserPageListViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         return Page.objects.filter(owner=self.request.user)
-    
+
 class PageViewSet(viewsets.ModelViewSet):
     queryset = Page.objects.all()
     permission_classes = [permissions.IsAuthenticated]
@@ -186,47 +186,56 @@ class PageViewSet(viewsets.ModelViewSet):
                 return Response({'detail': 'Follow request not found.'}, status=status.HTTP_404_NOT_FOUND)
         else:
             return Response({'detail': 'Page not found.'}, status=404)
-    
-class PostViewSet(viewsets.ModelViewSet):
+
+class PostViewSet(CheckCurrentPageMixin, viewsets.ModelViewSet):
     queryset = Post.objects.all()
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = page_serializer.PostSerializer
 
     def list(self, request, *args, **kwargs):
-        current_page = request.query_params.get('current_page')
+        if not self.check_current_page(request) == None:
+            return self.check_current_page(request)
+        
+        current_page_id = request.query_params.get('current_page')
 
-        if current_page:
-            posts = self.queryset.filter(page=current_page)
-        else:
-            posts = self.queryset.all()
-
+        posts = self.queryset.filter(page=current_page_id).order_by('-created_at')
         serializer = self.serializer_class(posts, many=True)
         return Response(serializer.data)
 
     def retrieve(self, request, *args, **kwargs):
-        post = self.queryset.get(pk=kwargs['pk'])
-        if not page_permissions.CanViewPost().has_object_permission(request, self, post):
+        try:
+            post = self.queryset.get(pk=kwargs['pk'])
+        except Post.DoesNotExist:
+            return Response({'detail': 'Post not found.'}, status=status.HTTP_404_NOT_FOUND)
+        
+        if not page_permissions.PostsPermissionsSet().has_object_permission(request, self, post):
             return Response({'detail': 'You do not have permissions to view this content. Must be: follower, owner, admin/moder.'}, status=status.HTTP_403_FORBIDDEN)
+            
         serializer = self.serializer_class(post)
         return Response(serializer.data)
 
     def create(self, request, *args, **kwargs):
-        current_page = request.query_params.get('current_page')
-        page = Page.objects.get(pk=current_page)
-        request.data['page'] = page.pk
+        current_page_id = request.query_params.get('current_page')
+
+        if not self.check_current_page(request) == None:
+            return self.check_current_page(request)
+        
+        current_page = Page.objects.get(id=current_page_id)
+        
+        request.data['page'] = current_page.pk
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data, status=status.HTTP_201_CREATED)
     
     def update(self, request, *args, **kwargs):
+        if not self.check_current_page(request) == None:
+            return self.check_current_page(request)
+        
         try:
             post = self.queryset.get(pk=kwargs['pk'])
         except Post.DoesNotExist:
             return Response({'detail': 'Post not found.'}, status=status.HTTP_404_NOT_FOUND)
-        
-        if not page_permissions.IsOwner().has_object_permission(request, self, post):
-            return Response({'detail': 'You are not the owner of this post.'}, status=status.HTTP_403_FORBIDDEN)
         
         serializer = self.serializer_class(post, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
@@ -234,14 +243,13 @@ class PostViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
     
     def destroy(self, request, *args, **kwargs):
+        if not self.check_current_page(request) == None:
+            return self.check_current_page(request)
+
         try:
             post = self.queryset.get(pk=kwargs['pk'])
         except Post.DoesNotExist:
             return Response({'detail': 'Post not found.'}, status=status.HTTP_404_NOT_FOUND)
-        
-
-        if not page_permissions.IsOwner().has_object_permission(request, self, post):
-            return Response({'detail': 'You are not the owner of this post.'}, status=status.HTTP_403_FORBIDDEN)
         
         post.delete()
         return Response({'detail': 'Post has been deleted.'}, status=status.HTTP_204_NO_CONTENT)
@@ -250,10 +258,15 @@ class PostViewSet(viewsets.ModelViewSet):
     # Пока что вот так деревянно.
     @action(detail=True, methods=['post'])
     def like(self, request, pk=None):
+        if not self.check_current_page(request) == None:
+            return self.check_current_page(request)
+        
         current_page = Page.objects.get(pk = request.query_params.get('current_page'))
-        post = Post.objects.get(pk=pk)
-        if not post:
-            return Response({"message": "Post not found"}, status=201)
+
+        try:
+            post = Post.objects.get(pk=pk)
+        except Post.DoesNotExist:
+            return Response({'detail': 'Post not found.'}, status=status.HTTP_404_NOT_FOUND)
 
         if post.dislikes.filter(author=current_page).first():
             post.dislikes.filter(author=current_page).delete()
@@ -268,10 +281,14 @@ class PostViewSet(viewsets.ModelViewSet):
         
     @action(detail=True, methods=['post'])
     def dislike(self, request, pk=None):
+        if not self.check_current_page(request) == None:
+            return self.check_current_page(request)
+        
         current_page = Page.objects.get(pk = request.query_params.get('current_page'))
-        post = Post.objects.get(pk=pk)
-        if not post:
-            return Response({"message": "Post not found"}, status=201)
+        try:
+            post = Post.objects.get(pk=pk)
+        except Post.DoesNotExist:
+            return Response({'detail': 'Post not found.'}, status=status.HTTP_404_NOT_FOUND)
 
         if post.likes.filter(author=current_page).first():
             post.likes.filter(author=current_page).delete()
