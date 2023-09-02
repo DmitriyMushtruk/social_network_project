@@ -39,8 +39,8 @@ urlpatterns = [
         ),
     path('pages/<str:name>/followers/',
         PageViewSet.as_view({'get': 'get_followers_action'}), name='followers'),
-    path('pages/<int:pk>/block/', PageViewSet.as_view({'post': 'block'}), name='block-page'),
-    path('pages/<int:pk>/unblock/', PageViewSet.as_view({'post': 'unblock'}), name='unblock-page'),
+    path('pages/<str:name>/block/', PageViewSet.as_view({'post': 'block'}), name='block-page'),
+    path('pages/<str:name>/unblock/', PageViewSet.as_view({'post': 'unblock'}), name='unblock-page'),
 
     path('posts/list/<str:name>/', PostViewSet.as_view({'get': 'get_page_posts_action'}), name='posts_list'),
     path('posts/<int:pk>/like/', PostViewSet.as_view({'post': 'like_action'}), name='like_post'),
