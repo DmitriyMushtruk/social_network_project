@@ -24,12 +24,7 @@ class PostSerializer(serializers.ModelSerializer):
         model = Post
         fields =    "__all__"
 
-    def create(self, validated_data):
-        return Post.objects.create(**validated_data)
-
-
 class PageSerializer(serializers.ModelSerializer):
-    visible_posts = serializers.SerializerMethodField()
     owner = serializers.HiddenField(default=serializers.CurrentUserDefault())
 
     class Meta:
@@ -43,10 +38,3 @@ class PageSerializer(serializers.ModelSerializer):
         #     tag, created = Tag.objects.get_or_create(name=tag_data['name'])
         #     page.tags.add(tag)
         return super().create(validated_data)
-    
-    def get_visible_posts(self, instance):
-        visible_posts = self.context.get('visible_posts')
-        if visible_posts:
-            post_serializer = PostSerializer(visible_posts, many=True)
-            return post_serializer.data
-        return []
