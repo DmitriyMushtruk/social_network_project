@@ -85,9 +85,13 @@ def get_page_posts(page: Page, user: User, current_page: Page) -> Response:
                     filtred_posts.append(post)
                 elif original_post.page.owner == user:
                     filtred_posts.append(post)
-            elif page.is_private and page.followers.filter(id=current_page.id).exists():
+            elif (
+                page.is_private
+                and page.followers.filter(id=current_page.id).exists()
+                and page.unblock_date == None
+                ):
                 filtred_posts.append(post)
-            else:
+            elif page.unblock_date == None:
                 filtred_posts.append(post)
         return filtred_posts
 
