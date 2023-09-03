@@ -28,22 +28,22 @@ RUN apk update && \
 RUN pip install "poetry==$POETRY_VERSION" && poetry --version
 RUN pip install python-dotenv
 
-# Set the working directory to /project_backend
-WORKDIR /project_backend
+# Set the working directory to /social_backend
+WORKDIR /social_backend
 
-COPY pyproject.toml /project_backend
-COPY poetry.lock /project_backend
+COPY pyproject.toml /social_backend
+COPY poetry.lock /social_backend
 
 # Install dependencies:
 RUN poetry install --no-root
 
 # Copy entrypoint.sh
-COPY entrypoint.sh /project_backend
-RUN sed -i 's/\r$//g' /project_backend/entrypoint.sh
-RUN chmod +x /project_backend/entrypoint.sh
+COPY entrypoint.sh /social_backend
+RUN sed -i 's/\r$//g' /social_backend/entrypoint.sh
+RUN chmod +x /social_backend/entrypoint.sh
 
-# Copy the current directory contents into the container at /project_backend
+# Copy the current directory contents into the container at /social_backend
 COPY . .
 
 # Run entrypoint.sh
-ENTRYPOINT ["/project_backend/entrypoint.sh"]
+ENTRYPOINT ["/social_backend/entrypoint.sh"]

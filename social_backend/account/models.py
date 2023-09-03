@@ -26,6 +26,9 @@ class User(AbstractUser):
     date_joined = models.DateTimeField(default=timezone.now)
     last_login = models.DateTimeField(blank=True, null=True)
 
+    USERNAME_FIELD = "email"
+    REQUIRED_FIELDS = ["username"]
+
     def __str__(self):
         return self.email
     

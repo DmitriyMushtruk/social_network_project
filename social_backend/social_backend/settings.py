@@ -1,7 +1,8 @@
 from datetime import timedelta
 from pathlib import Path
-from dotenv import load_dotenv
 import os
+from dotenv import load_dotenv
+
 
 load_dotenv()
 
@@ -87,6 +88,7 @@ INSTALLED_APPS = [
     "rest_framework_simplejwt.token_blacklist",
     'corsheaders',
     'account',
+    'page.apps.PageConfig',
 ]
 
 MIDDLEWARE = [
