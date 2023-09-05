@@ -26,10 +26,12 @@ def get_feeds(user: User, current_page: Page) -> Response:
 
 
 def repost_post(original_post: Post, current_page: Page) -> Response:
-    if current_page.posts.filter(id=original_post.id).exists():
-        return Response({'detail': 'Repost failed.'}, status=HTTP_409_CONFLICT)
+    if current_page.posts.filter(reply_to_id=original_post.id).exists():
+        return Response({'detail': 'Repost failed. This post has already been reposted on your page.'}, status=HTTP_409_CONFLICT)
     elif original_post.page.is_private:
         return Response({'detail': 'Repost failed. Repost from private page is not allowed.'}, status=HTTP_403_FORBIDDEN)
+    elif current_page == original_post.page:
+        return Response({'detail': 'Repost failed. Reposting your own post is not allowed.'}, status=HTTP_403_FORBIDDEN)
     
     Post.objects.create(
     page=current_page,
