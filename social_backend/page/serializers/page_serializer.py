@@ -26,15 +26,16 @@ class PostSerializer(serializers.ModelSerializer):
 
 class PageSerializer(serializers.ModelSerializer):
     owner = serializers.HiddenField(default=serializers.CurrentUserDefault())
+    tags = TagListSerializer(many=True, read_only=True)
 
     class Meta:
         model = Page
         fields =    "__all__"
 
     def create(self, validated_data):
-        # tags_data = validated_data.pop('tags', [])
-        # page = Page.objects.create(**validated_data)
-        # for tag_data in tags_data:
-        #     tag, created = Tag.objects.get_or_create(name=tag_data['name'])
-        #     page.tags.add(tag)
+        tags_data = validated_data.pop('tags', [])
+        page = Page.objects.create(**validated_data)
+        for tag_data in tags_data:
+            tag, created = Tag.objects.get_or_create(name=tag_data['name'])
+            page.tags.add(tag)
         return super().create(validated_data)
