@@ -1,7 +1,14 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
-from .views import TagListViewSet, UserPageListViewSet, PageViewSet, PostViewSet, FeedView
+from .views import (
+    TagListViewSet,
+    UserPageListViewSet,
+    PageViewSet,
+    PostViewSet,
+    FeedView,
+    SearchView,
+)
 
 app_name = "page"
 
@@ -14,7 +21,7 @@ router.register(r'posts', PostViewSet, basename='posts')
 
 urlpatterns = [
     path("", include(router.urls)),
-
+    
     path('pages/<str:name>/requests/',
         PageViewSet.as_view({'get': 'get_requests_action'}), name='requests'),
     path(
@@ -49,6 +56,8 @@ urlpatterns = [
     path('posts/<int:pk>/repost/', PostViewSet.as_view({'post': 'repost_action'}), name='repost_post'),
 
     path('feeds/', FeedView.as_view({'get': 'list'}), name='feeds'),
+    
+    path('search/', SearchView.as_view({'get': 'list'}), name='feeds'),
  ]
 
 urlpatterns += router.urls
