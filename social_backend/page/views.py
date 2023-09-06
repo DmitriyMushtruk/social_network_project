@@ -5,7 +5,10 @@ from rest_framework.decorators import action
 from rest_framework.views import APIView
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.filters import SearchFilter
 from django.shortcuts import get_object_or_404
+
+from account.serializers.user_serializer import UserSerializer
 
 from rest_framework.mixins import (
     RetrieveModelMixin,
@@ -38,6 +41,7 @@ from page.services.page_services import (
     reject_request,
     reject_all_requests,
     get_page_posts,
+    page_or_user_search,
 )
 
 from page.services.post_services import (
@@ -313,3 +317,17 @@ class FeedView(viewsets.ModelViewSet, ListModelMixin):
         current_page = Page.objects.get(id=self.request.query_params.get('current_page'))
         return get_feeds(user, current_page)
     
+class SearchView(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated]
+    filter_backends = [SearchFilter]
+    search_fields = ['name', 'description', 'tags__name', 'username']
+
+    def get_serializer_class(self):
+        if isinstance(self.get_queryset()[0], Page):
+            return PageSerializer
+        elif isinstance(self.get_queryset()[0], User):
+            return UserSerializer
+
+    def get_queryset(self):
+        query = self.request.query_params.get('query', '')
+        return page_or_user_search(query)
