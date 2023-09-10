@@ -54,6 +54,7 @@ urlpatterns = [
     path('posts/<int:pk>/dislike/', PostViewSet.as_view({'post': 'dislike_action'}), name='dislike_post'),
     path('posts/<int:pk>/comment/', PostViewSet.as_view({'post': 'comment_action'}), name='comment_post'),
     path('posts/<int:pk>/repost/', PostViewSet.as_view({'post': 'repost_action'}), name='repost_post'),
+    path('posts/liked/', PostViewSet.as_view({'get': 'get_liked_posts_action'}), name='liked_posts'),
 
     path('feeds/', FeedView.as_view({'get': 'list'}), name='feeds'),
 
