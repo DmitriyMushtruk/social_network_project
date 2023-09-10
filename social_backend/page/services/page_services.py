@@ -2,7 +2,6 @@ from rest_framework.response import Response
 from account.models import User
 from page.models import Page, Post
 from django.db.models import Q
-from django.db import connection
 
 from rest_framework.status import (
     HTTP_200_OK,
