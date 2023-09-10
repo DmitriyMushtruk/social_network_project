@@ -48,7 +48,7 @@ urlpatterns = [
     path('posts/<int:pk>/comment/', PostViewSet.as_view({'post': 'comment_action'}), name='comment_post'),
     path('posts/<int:pk>/repost/', PostViewSet.as_view({'post': 'repost_action'}), name='repost_post'),
 
-    path('feeds/', FeedView.as_view(), name='feeds'),
+    path('feeds/', FeedView.as_view({'get': 'list'}), name='feeds'),
  ]
 
 urlpatterns += router.urls

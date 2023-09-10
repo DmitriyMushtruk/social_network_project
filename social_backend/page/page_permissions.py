@@ -64,11 +64,12 @@ class CanViewPage(permissions.BasePermission):
     To gain access to a private page, the user must be: admin/moder, follower. 
     """
     def has_object_permission(self, request, view, obj):
-        
         user = request.user
         if obj.is_private:
             current_page = request.query_params.get('current_page')
-            if obj.followers.filter(id=current_page).exists() or user.role == User.Roles.MODERATOR or user.role == User.Roles.ADMIN:
+            if (obj.followers.filter(id=current_page).exists()
+                or user.role in [User.Roles.MODERATOR, User.Roles.ADMIN]
+                ):
                 return True
             else:
                 return False
@@ -88,7 +89,7 @@ class CanViewPost(permissions.BasePermission):
         user = request.user
         current_page = request.query_params.get('current_page')
 
-        if obj.reply_to is not None:
+        if obj.reply_to:
             original_post = Post.objects.get(id=obj.reply_to.id)
             if original_post.page.followers.filter(id=current_page).exists():
                 return True

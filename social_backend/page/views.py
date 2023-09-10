@@ -12,6 +12,7 @@ from rest_framework.mixins import (
     CreateModelMixin,
     UpdateModelMixin,
     DestroyModelMixin,
+    ListModelMixin,
 )
 
 from page.serializers.page_serializer import (
@@ -30,23 +31,29 @@ from page.page_permissions import (
     CheckPageBlockStatus,
 )
 
-from page.services import (
+from page.services.page_services import (
     follow_unfollow,
     approve_request,
     approve_all_requests,
     reject_request,
     reject_all_requests,
     get_page_posts,
+)
+
+from page.services.post_services import (
     repost_post,
     like_post,
     dislike_post,
-    )
+    get_feeds,
+)
 
 from account.models import User
 from page.models import Page, Tag, Post, Comment
 
 # Блокироовка пользователей должна быть доступна админам.
 # Убрать возможность репостить один и тот же пост несколько раз одной и той же страницей
+# Selery, отправка уведомлений при публикации поста
+# Поиск страниц --- Предоставлять поиск страниц по названию/uuid/тегу и пользователей по username/имени (c помощью одного эндпоинта)
 class TagListViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Tag.objects.all()
     serializer_class = TagListSerializer
@@ -203,15 +210,15 @@ class PostViewSet(
 
     def get_permissions(self):
         if self.action == 'retrieve':
-            self.permission_classes += [(IsOwner | IsAdminOrModer | CanViewPost and CheckCurrentPage)]
-        elif self.action == 'destroy':
-            self.permission_classes += [(IsOwner | IsAdminOrModer)]
+            self.permission_classes += [IsOwner | IsAdminOrModer | CanViewPost and CheckCurrentPage]
+        elif self.action == 'delete':
+            self.permission_classes += [IsOwner | IsAdminOrModer]
         elif self.action == 'update':
             self.permission_classes += [IsOwner]
         elif self.action == 'create':
             self.permission_classes += [CheckCurrentPage]
         elif self.action == 'get_page_posts_action':
-            self.permission_classes += [CanViewPage]
+            self.permission_classes += [CanViewPage | IsOwner]
         elif self.action == 'get_liked_posts_action':
             self.permission_classes += [CheckCurrentPage]
         elif self.action in ('comment_action', 'repost_action', 'like_action', 'dislike_action',):
@@ -266,7 +273,6 @@ class PostViewSet(
     def repost_action(self, request, pk=None):
         current_page = Page.objects.get(pk = request.query_params.get('current_page'))
         original_post = get_object_or_404(Post, pk=pk)
-
         return repost_post(original_post, current_page)
 
     @action(
@@ -287,7 +293,6 @@ class PostViewSet(
         post = get_object_or_404(Post, pk=pk)
         return dislike_post(post, current_page)
        
-    # Убрать пост из списка, если страница поста заблокирована
     @action(
         detail=False,
         methods=['GET'],
@@ -296,27 +301,15 @@ class PostViewSet(
     )
     def get_liked_posts_action(self, request, pk=None):
         current_page = Page.objects.get(pk = request.query_params.get('current_page'))
-        liked_posts = Post.objects.filter(likes__author=current_page)
+        liked_posts = Post.objects.filter(likes__author=current_page, page__unblock_date__isnull=True)
         serializer = self.get_serializer(liked_posts, many=True)
         return Response(serializer.data)
 
-class FeedView(APIView):
+class FeedView(viewsets.ModelViewSet, ListModelMixin):
     permission_classes = [IsAuthenticated, CheckCurrentPage]
+    serializer_class = PostSerializer
+    def get_queryset(self):
+        user = self.request.user
+        current_page = Page.objects.get(id=self.request.query_params.get('current_page'))
+        return get_feeds(user, current_page)
     
-    def get(self, request):
-        user = request.user
-        current_page = Page.objects.get(id=request.query_params.get('current_page'))
-        followed_pages = current_page.page_follows.all()
-        own_pages = Page.objects.filter(owner=request.user)
-        pages = followed_pages | own_pages
-
-        feeds_posts = []
-        for page in pages:
-            if page.unblock_date == None:
-                posts = get_page_posts(page, user, current_page)
-                feeds_posts.extend(posts)
-        
-        sorted_feeds_posts = sorted(feeds_posts, key=lambda x: x.created_at, reverse=True)
-
-        serializer = PostSerializer(sorted_feeds_posts, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
