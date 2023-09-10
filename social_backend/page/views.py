@@ -1,11 +1,14 @@
-from rest_framework import status, viewsets
+from rest_framework import viewsets
 from rest_framework.viewsets import GenericViewSet
 from rest_framework.response import Response
 from rest_framework.decorators import action
-from rest_framework.views import APIView
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.filters import SearchFilter
+from rest_framework import serializers
 from django.shortcuts import get_object_or_404
+
+from account.serializers.user_serializer import UserSerializer
 
 from rest_framework.mixins import (
     RetrieveModelMixin,
@@ -22,7 +25,7 @@ from page.serializers.page_serializer import (
     CommentSerializer,
 )
 
-from page.page_permissions import ( 
+from page.page_permissions import (
     IsOwner,
     CheckCurrentPage,
     CanViewPage,
@@ -38,6 +41,7 @@ from page.services.page_services import (
     reject_request,
     reject_all_requests,
     get_page_posts,
+    page_or_user_search,
 )
 
 from page.services.post_services import (
@@ -50,23 +54,27 @@ from page.services.post_services import (
 from account.models import User
 from page.models import Page, Tag, Post, Comment
 
+
 # Блокироовка пользователей должна быть доступна админам.
 # Убрать возможность репостить один и тот же пост несколько раз одной и той же страницей
 # Selery, отправка уведомлений при публикации поста
-# Поиск страниц --- Предоставлять поиск страниц по названию/uuid/тегу и пользователей по username/имени (c помощью одного эндпоинта)
+# Поиск страниц --- Предоставлять поиск страниц по названию/uuid/тегу и
+# пользователей по username/имени (c помощью одного эндпоинта)
 class TagListViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Tag.objects.all()
     serializer_class = TagListSerializer
-    permission_classes = (IsAuthenticated)
+    permission_classes = IsAuthenticated
+
 
 class UserPageListViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Page.objects.all()
     serializer_class = PageSerializer
-    permission_classes = (IsAuthenticated)
+    permission_classes = IsAuthenticated
     lookup_field = "name"
 
     def get_queryset(self):
         return Page.objects.filter(owner=self.request.user)
+
 
 class PageViewSet(
     RetrieveModelMixin,
@@ -74,8 +82,7 @@ class PageViewSet(
     UpdateModelMixin,
     DestroyModelMixin,
     GenericViewSet
-    ):
-
+):
     """Page ViewSet"""
 
     queryset = Page.objects.prefetch_related("tags").all()
@@ -84,29 +91,30 @@ class PageViewSet(
     lookup_field = "name"
 
     def get_permissions(self):
-        if self.action in ('update', 'destroy', 'approve_requests_action', 'reject_requests_action', 'get_requests_action'):
+        if self.action in (
+                'update', 'destroy', 'approve_requests_action', 'reject_requests_action', 'get_requests_action'):
             self.permission_classes += [IsOwner]
         elif self.action in ('block_action', 'unblock_action'):
             self.permission_classes += [IsAdminOrModer]
-        elif self.action ==  'follow_unfollow_action':
+        elif self.action == 'follow_unfollow_action':
             self.permission_classes += [CheckCurrentPage]
         else:
             self.permission_classes += [(CanViewPage | IsOwner)]
 
         return super(PageViewSet, self).get_permissions()
-    
+
     @action(
-            detail=True,
-            methods=['post'],
-            url_name="follow_unfollow",
-            url_path="follow_unfollow",
+        detail=True,
+        methods=['post'],
+        url_name="follow_unfollow",
+        url_path="follow_unfollow",
     )
     def follow_unfollow_action(self, request, name=None):
         """This action allows users to follow or unfollow pages"""
         self.check_permissions(self.request)
         current_page = Page.objects.get(id=request.query_params.get('current_page'))
         return follow_unfollow(current_page, self.get_object(), request.user)
-    
+
     @action(
         detail=True,
         methods=['post'],
@@ -138,10 +146,10 @@ class PageViewSet(
             requester = get_object_or_404(Page, id=kwargs.get("requester_page"))
             return reject_request(page, requester)
         return reject_all_requests(page)
-    
+
     @action(
-            detail=True,
-            methods=['get']
+        detail=True,
+        methods=['get']
     )
     def get_requests_action(self, request, name):
         """
@@ -165,7 +173,7 @@ class PageViewSet(
         followers = page.followers.all()
         serializer = PageSerializer(followers, many=True)
         return Response(serializer.data)
-    
+
     @action(
         detail=True,
         methods=['post'],
@@ -180,7 +188,7 @@ class PageViewSet(
         page.save()
 
         return Response({'detail': 'Page has been blocked.'}, status=status.HTTP_200_OK)
-    
+
     @action(
         detail=True,
         methods=['post'],
@@ -195,15 +203,15 @@ class PageViewSet(
         page.save()
 
         return Response({'detail': 'Page has been unblocked.'}, status=status.HTTP_200_OK)
-    
+
 
 class PostViewSet(
     RetrieveModelMixin,
     CreateModelMixin,
     UpdateModelMixin,
     DestroyModelMixin,
-    GenericViewSet):
-
+    GenericViewSet
+):
     queryset = Post.objects.all()
     permission_classes = [IsAuthenticated]
     serializer_class = PostSerializer
@@ -233,14 +241,14 @@ class PostViewSet(
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data, status=status.HTTP_201_CREATED)
-    
+
     def update(self, request, *args, **kwargs):
         post = get_object_or_404(Post, pk=kwargs['pk'])
         serializer = self.serializer_class(post, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data)
-    
+
     @action(
         detail=True,
         methods=['get']
@@ -250,8 +258,8 @@ class PostViewSet(
         self.check_object_permissions(request, page)
         user = self.request.user
         current_page = request.query_params.get('current_page')
-        posts = get_page_posts(page, user, current_page)
-        serializer = PostSerializer(posts, many = True)
+        posts = get_page_posts(page, user)
+        serializer = PostSerializer(posts, many=True)
         return Response(serializer.data)
 
     @action(
@@ -259,19 +267,19 @@ class PostViewSet(
         methods=['post']
     )
     def comment_action(self, request, name=None, pk=None):
-        current_page = Page.objects.get(pk = request.query_params.get('current_page'))
+        current_page = Page.objects.get(pk=request.query_params.get('current_page'))
         post = get_object_or_404(Post, pk=pk)
         comment_text = request.data.get('content')
         comment = Comment.objects.create(post=post, author=current_page, content=comment_text)
         serializer = CommentSerializer(comment)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
-    
+
     @action(
         detail=True,
         methods=['post']
     )
     def repost_action(self, request, pk=None):
-        current_page = Page.objects.get(pk = request.query_params.get('current_page'))
+        current_page = Page.objects.get(pk=request.query_params.get('current_page'))
         original_post = get_object_or_404(Post, pk=pk)
         return repost_post(original_post, current_page)
 
@@ -280,19 +288,19 @@ class PostViewSet(
         methods=['post'],
     )
     def like_action(self, request, pk=None):
-        current_page = Page.objects.get(pk = request.query_params.get('current_page'))
+        current_page = Page.objects.get(pk=request.query_params.get('current_page'))
         post = get_object_or_404(Post, pk=pk)
         return like_post(post, current_page)
-        
+
     @action(
         detail=True,
         methods=['post']
     )
     def dislike_action(self, request, pk=None):
-        current_page = Page.objects.get(pk = request.query_params.get('current_page'))
+        current_page = Page.objects.get(pk=request.query_params.get('current_page'))
         post = get_object_or_404(Post, pk=pk)
         return dislike_post(post, current_page)
-       
+
     @action(
         detail=False,
         methods=['GET'],
@@ -300,16 +308,38 @@ class PostViewSet(
         url_path='liked'
     )
     def get_liked_posts_action(self, request, pk=None):
-        current_page = Page.objects.get(pk = request.query_params.get('current_page'))
+        current_page = Page.objects.get(pk=request.query_params.get('current_page'))
         liked_posts = Post.objects.filter(likes__author=current_page, page__unblock_date__isnull=True)
         serializer = self.get_serializer(liked_posts, many=True)
         return Response(serializer.data)
 
+
 class FeedView(viewsets.ModelViewSet, ListModelMixin):
     permission_classes = [IsAuthenticated, CheckCurrentPage]
     serializer_class = PostSerializer
+
     def get_queryset(self):
         user = self.request.user
         current_page = Page.objects.get(id=self.request.query_params.get('current_page'))
         return get_feeds(user, current_page)
-    
+
+
+class SearchView(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated]
+    filter_backends = [SearchFilter]
+    search_fields = ['name', 'description', 'tags__name', 'username']
+
+    def get_serializer_class(self):
+        queryset = self.get_queryset()
+
+        if not queryset:
+            raise serializers.ValidationError("Nothing was found for your request", code=status.HTTP_404_NOT_FOUND)
+
+        if isinstance(self.get_queryset()[0], Page):
+            return PageSerializer
+        elif isinstance(self.get_queryset()[0], User):
+            return UserSerializer
+
+    def get_queryset(self):
+        query = self.request.query_params.get('query', '')
+        return page_or_user_search(query)

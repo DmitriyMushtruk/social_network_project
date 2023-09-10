@@ -1,7 +1,5 @@
 # syntax=docker/dockerfile:1
 
-# The first instruction is what image we want to base our container on
-# We Use an official Python runtime as a parent image
 FROM python:3.10-alpine3.17
 
 ARG DJANGO_ENV

@@ -3,7 +3,6 @@ from pathlib import Path
 import os
 from dotenv import load_dotenv
 
-
 load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -15,10 +14,9 @@ SECRET_KEY = os.environ.get("SECRET_KEY")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0']
+ALLOWED_HOSTS = ['*']
 
 ACCOUNT_USER_MODEL_USERNAME_FIELD = 'username'
-
 
 # Application definition
 AUTH_USER_MODEL = "account.User"
@@ -122,11 +120,10 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'social_backend.wsgi.application'
 
-
 # Database
 DATABASES = {
     'default': {
-        'ENGINE':os.environ.get("SQL_ENGINE"),
+        'ENGINE': os.environ.get("SQL_ENGINE"),
         'NAME': os.environ.get('SQL_DATABASE'),
         'USER': os.environ.get('SQL_USER'),
         'PASSWORD': os.environ.get('SQL_PASSWORD'),
@@ -134,7 +131,6 @@ DATABASES = {
         'PORT': os.environ.get('SQL_PORT'),
     }
 }
-
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
@@ -152,7 +148,6 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-
 # Internationalization
 # https://docs.djangoproject.com/en/4.2/topics/i18n/
 
@@ -163,7 +158,6 @@ TIME_ZONE = 'Europe/Warsaw'
 USE_I18N = True
 
 USE_TZ = True
-
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.2/howto/static-files/

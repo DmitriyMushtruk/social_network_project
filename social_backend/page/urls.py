@@ -1,7 +1,14 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
-from .views import TagListViewSet, UserPageListViewSet, PageViewSet, PostViewSet, FeedView
+from .views import (
+    TagListViewSet,
+    UserPageListViewSet,
+    PageViewSet,
+    PostViewSet,
+    FeedView,
+    SearchView,
+)
 
 app_name = "page"
 
@@ -16,29 +23,29 @@ urlpatterns = [
     path("", include(router.urls)),
 
     path('pages/<str:name>/requests/',
-        PageViewSet.as_view({'get': 'get_requests_action'}), name='requests'),
+         PageViewSet.as_view({'get': 'get_requests_action'}), name='requests'),
     path(
         'pages/<str:name>/requests/approve/<int:requester_page>/',
         PageViewSet.as_view({'post': 'approve_requests_action'}),
         name='approve_request'
-        ),
+    ),
     path(
         'pages/<str:name>/requests/approve/',
         PageViewSet.as_view({'post': 'approve_requests_action'}),
         kwargs={"requester_page": None}, name='approve_requests'
-        ),
+    ),
     path(
         'pages/<str:name>/requests/reject/<int:requester_page>/',
         PageViewSet.as_view({'post': 'reject_requests_action'}),
         name='reject_request'
-        ),
+    ),
     path(
         'pages/<str:name>/requests/reject/',
         PageViewSet.as_view({'post': 'reject_requests_action'}),
         kwargs={"requester_page": None}, name='reject_requests'
-        ),
+    ),
     path('pages/<str:name>/followers/',
-        PageViewSet.as_view({'get': 'get_followers_action'}), name='followers'),
+         PageViewSet.as_view({'get': 'get_followers_action'}), name='followers'),
     path('pages/<str:name>/block/', PageViewSet.as_view({'post': 'block'}), name='block-page'),
     path('pages/<str:name>/unblock/', PageViewSet.as_view({'post': 'unblock'}), name='unblock-page'),
 
@@ -49,6 +56,8 @@ urlpatterns = [
     path('posts/<int:pk>/repost/', PostViewSet.as_view({'post': 'repost_action'}), name='repost_post'),
 
     path('feeds/', FeedView.as_view({'get': 'list'}), name='feeds'),
- ]
+
+    path('search/', SearchView.as_view({'get': 'list'}), name='feeds'),
+]
 
 urlpatterns += router.urls
