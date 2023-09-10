@@ -81,45 +81,16 @@ def get_page_posts(page: Page, user: User) -> Response:
     return posts.order_by('-created_at')
 
 
+def page_or_user_search(query):
+    if not isinstance(query, str):
+        return []
+
     query = str(query)
-    sql = """
-    SELECT id::text, name, description, 'page' AS object_type
-    FROM page_page
-    WHERE name ILIKE %s OR description ILIKE %s
 
-    UNION ALL
+    page_results = Page.objects.filter(Q(name__icontains=query) | Q(description__icontains=query))
+    user_results = User.objects.filter(username__icontains=query)
+    tag_results = Page.objects.filter(tags__name__icontains=query)
 
-    SELECT id::text, username AS name, '' AS description, 'user' AS object_type
-    FROM account_user
-    WHERE username ILIKE %s
-
-    UNION ALL
-    
-    SELECT p.id::text, p.name, p.description, 'page' AS object_type
-    FROM page_page AS p
-    INNER JOIN page_page_tags AS pt ON p.id = pt.page_id
-    INNER JOIN page_tag AS t ON pt.tag_id = t.id
-    WHERE t.name ILIKE %s
-    """
-
-    params = [f'%{query}%', f'%{query}%', f'%{query}%', f'%{query}%']
-    with connection.cursor() as cursor:
-        cursor.execute(sql, params)
-        results = cursor.fetchall()
-    
-    if len(results) == 0:
-        return HttpResponse('Not found', status=404)
-    
-    queryset = []
-    
-    for row in results:
-        print("Row: ", row)
-        if len(row) >= 4 and row[3] == 'user':
-            queryset.append(User(id=row[0], username=row[1]))
-        elif len(row) >= 4 and row[3] == 'page':
-            queryset.append(Page(id=row[0], name=row[1], description=row[2]))
-        
-    if not queryset:
-        return HttpResponse('Not found', status=404)
+    queryset = list(page_results) + list(user_results) + list(tag_results)
 
     return queryset
