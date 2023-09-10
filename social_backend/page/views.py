@@ -330,6 +330,11 @@ class SearchView(viewsets.ModelViewSet):
     search_fields = ['name', 'description', 'tags__name', 'username']
 
     def get_serializer_class(self):
+        queryset = self.get_queryset()
+
+        if not queryset:
+            raise serializers.ValidationError("Nothing was found for your request", code=status.HTTP_404_NOT_FOUND)
+
         if isinstance(self.get_queryset()[0], Page):
             return PageSerializer
         elif isinstance(self.get_queryset()[0], User):
