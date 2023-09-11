@@ -43,6 +43,7 @@ class CheckCurrentPage(permissions.BasePermission):
 class CheckPageBlockStatus(permissions.BasePermission):
     """
     Checks the block status of the page.
+    If page owner has blocked status - access will be denied.
     If the page is blocked access will be denied.
     If the page blocking time has passed - the page will be unblocked and become available.
     Administrators and moderators have access to blocked pages.
@@ -52,11 +53,15 @@ class CheckPageBlockStatus(permissions.BasePermission):
         user = request.user
         page = view.get_object()
 
-        if user.role == User.Roles.MODERATOR or user.role == User.Roles.ADMIN:
+        if user.role in [User.Roles.MODERATOR, User.Roles.ADMIN]:
             return True
-        if page.unblock_date is None:
+        elif page.owner.is_blocked:
+            self.message = {
+                'detail': f"Page is unavailable. Page owner is blocked."}
+            return False
+        elif not page.unblock_date:
             return True
-        elif page.unblock_date is not None and page.unblock_date <= timezone.now():
+        elif page.unblock_date and page.unblock_date <= timezone.now():
             page.unblock_date = None
             page.save()
             return True
