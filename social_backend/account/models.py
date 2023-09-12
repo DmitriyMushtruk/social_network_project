@@ -1,13 +1,12 @@
 import os
 import uuid
-import jwt
 
 from django.contrib.auth.models import AbstractUser
 from django.conf import settings
 from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
-from django.template.defaultfilters import slugify
+
 
 class User(AbstractUser):
     class Roles(models.TextChoices):
@@ -19,7 +18,7 @@ class User(AbstractUser):
     email = models.EmailField(_("email address"), unique=True)
     image_s3_path = models.CharField(max_length=200, null=True, blank=True)
     role = models.CharField(max_length=9, choices=Roles.choices, default=Roles.USER)
-    
+
     username = models.CharField(max_length=80, blank=False, unique=True)
     is_blocked = models.BooleanField(default=False)
 
@@ -31,7 +30,8 @@ class User(AbstractUser):
 
     def __str__(self):
         return self.email
-    
+
+
 class Profile(models.Model):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     avatar = models.ImageField(upload_to='media', blank=True)
