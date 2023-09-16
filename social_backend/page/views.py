@@ -54,6 +54,7 @@ from page.services.post_services import (
 from account.models import User
 from page.models import Page, Tag, Post, Comment
 from .email_sender import send_new_post_notification_email
+from .producer import send_message
 
 
 class TagListViewSet(viewsets.ReadOnlyModelViewSet):
@@ -289,6 +290,7 @@ class PostViewSet(
     def like_action(self, request, pk=None):
         current_page = Page.objects.get(pk=request.query_params.get('current_page'))
         post = get_object_or_404(Post, pk=pk)
+        send_message.delay(method="POST", body=dict(page_id="10", action="like-dislike_action"))
         return like_post(post, current_page)
 
     @action(
