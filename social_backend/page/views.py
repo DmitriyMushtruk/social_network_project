@@ -53,13 +53,9 @@ from page.services.post_services import (
 
 from account.models import User
 from page.models import Page, Tag, Post, Comment
+from .email_sender import send_new_post_notification_email
 
 
-# Блокироовка пользователей должна быть доступна админам.
-# Убрать возможность репостить один и тот же пост несколько раз одной и той же страницей
-# Selery, отправка уведомлений при публикации поста
-# Поиск страниц --- Предоставлять поиск страниц по названию/uuid/тегу и
-# пользователей по username/имени (c помощью одного эндпоинта)
 class TagListViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Tag.objects.all()
     serializer_class = TagListSerializer
@@ -240,7 +236,10 @@ class PostViewSet(
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+        response = super().create(request, *args, **kwargs)
+        send_new_post_notification_email(response.data.get("id"))
+        return response
 
     def update(self, request, *args, **kwargs):
         post = get_object_or_404(Post, pk=kwargs['pk'])
