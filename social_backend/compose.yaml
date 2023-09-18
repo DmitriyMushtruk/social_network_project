@@ -22,6 +22,33 @@ services:
     env_file:
       - ./.env
 
+  rabbitmq:
+    container_name: rabbitmq
+    restart: always
+    image: rabbitmq:3.11-management-alpine
+    ports:
+      - '5672:5672'
+      - '15672:15672'
+    env_file:
+      - ./.env
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+
+  celery:
+    image: celery:latest
+    restart: always
+    build:
+      context: .
+    command: celery -A social_backend worker -l info --detach \
+            uwsgi --socket :8000 --master --enable-threads --module social_backend.wsgi
+    volumes:
+      - .:/social_backend
+    env_file:
+      - ./.env
+    depends_on:
+      - backend
+      - rabbitmq
+
   adminer:
     image: adminer
     restart: always
@@ -30,3 +57,9 @@ services:
 
 volumes:
   pgdbdata: null
+  rabbitmq_data:
+
+networks:
+  default:
+    external:
+      name: main_network
