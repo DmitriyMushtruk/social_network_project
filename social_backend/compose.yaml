@@ -39,7 +39,8 @@ services:
     restart: always
     build:
       context: .
-    command: celery -A social_backend worker -l info
+    command: celery -A social_backend worker -l info --detach \
+            uwsgi --socket :8000 --master --enable-threads --module social_backend.wsgi
     volumes:
       - .:/social_backend
     env_file:

@@ -9,12 +9,12 @@ from social_backend import settings
 from kombu.exceptions import OperationalError
 
 
-@app.task(name="send_message", queue="hello")
+@app.task(name="send_message", queue="stats")
 def send_message(method, body):
     connection = pika.BlockingConnection(pika.URLParameters(settings.CELERY_BROKER_URL))
     channel = connection.channel()
 
-    channel.queue_declare(queue='hello')
+    channel.queue_declare(queue='stats')
     properties = pika.BasicProperties(method)
 
     channel.basic_publish(
