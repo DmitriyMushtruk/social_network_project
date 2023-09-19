@@ -95,10 +95,28 @@ class PageViewSet(
             self.permission_classes += [IsAdminOrModer]
         elif self.action == 'follow_unfollow_action':
             self.permission_classes += [CheckCurrentPage]
+        elif self.action == 'create':
+            self.permission_classes = [IsAuthenticated]
         else:
             self.permission_classes += [(CanViewPage | IsOwner)]
 
         return super(PageViewSet, self).get_permissions()
+
+    def create(self, request, *args, **kwargs):
+        response = super().create(request, *args, **kwargs)
+        send_message.delay(
+            method="POST",
+            body=dict(page_id=response.data.get("id"), action="page_created"),
+        )
+        return response
+
+    def destroy(self, request, *args, **kwargs):
+        page = self.get_object()
+        super(PageViewSet, self).destroy(request, *args, **kwargs)
+        send_message.delay(
+            method="DELETE", body=dict(page_id=page.pk, action="page_deleted")
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(
         detail=True,
@@ -234,11 +252,15 @@ class PostViewSet(
     def create(self, request, *args, **kwargs):
         current_page = Page.objects.get(id=request.query_params.get('current_page'))
         request.data['page'] = current_page.pk
-        serializer = self.serializer_class(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
+        # serializer = self.serializer_class(data=request.data)
+        # serializer.is_valid(raise_exception=True)
+        # serializer.save()
 
         response = super().create(request, *args, **kwargs)
+        send_message.delay(
+            method="POST",
+            body=dict(page_id=current_page.pk, action="post_created"),
+        )
         send_new_post_notification_email(response.data.get("id"))
         return response
 
@@ -248,6 +270,14 @@ class PostViewSet(
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data)
+
+    def destroy(self, request, *args, **kwargs):
+        post = self.get_object()
+        super(PostViewSet, self).destroy(request, *args, **kwargs)
+        send_message.delay(
+            method="DELETE", body=dict(page_id=post.page.pk, action="post_deleted")
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(
         detail=True,
@@ -271,6 +301,10 @@ class PostViewSet(
         post = get_object_or_404(Post, pk=pk)
         comment_text = request.data.get('content')
         comment = Comment.objects.create(post=post, author=current_page, content=comment_text)
+        send_message.delay(
+            method="POST",
+            body=dict(page_id=Page.pk, action="add_comment"),
+        )
         serializer = CommentSerializer(comment)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
@@ -290,7 +324,6 @@ class PostViewSet(
     def like_action(self, request, pk=None):
         current_page = Page.objects.get(pk=request.query_params.get('current_page'))
         post = get_object_or_404(Post, pk=pk)
-        send_message.delay(method="POST", body=dict(page_id="10", action="like-dislike_action"))
         return like_post(post, current_page)
 
     @action(
