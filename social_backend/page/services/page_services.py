@@ -2,6 +2,7 @@ from rest_framework.response import Response
 from account.models import User
 from page.models import Page, Post
 from django.db.models import Q
+from page.producer import send_message
 
 from rest_framework.status import (
     HTTP_200_OK,
@@ -19,6 +20,10 @@ def follow_unfollow(current_page: Page, page=Page, user=User) -> Response:
 
     if current_page in page.followers.all():
         page.followers.remove(current_page)
+        send_message.delay(
+            method="DELETE",
+            body=dict(page_id=page.pk, action="remove_follower"),
+        )
         return Response({"detail": "Unfollowed successfully."}, status=HTTP_200_OK, )
     else:
         if page.is_private:
@@ -30,12 +35,20 @@ def follow_unfollow(current_page: Page, page=Page, user=User) -> Response:
                 return Response({'detail': 'Follow request canceled successfully.'}, status=HTTP_200_OK)
         else:
             page.followers.add(current_page)
+            send_message.delay(
+                method="POST",
+                body=dict(page_id=page.pk, action="add_follower"),
+            )
             return Response({'detail': 'Followed successfully.'}, status=HTTP_200_OK)
 
 
 def approve_request(page: Page, requester: Page) -> Response:
     if requester in page.follow_requests.all():
         page.followers.add(requester)
+        send_message.delay(
+            method="POST",
+            body=dict(page_id=page.pk, action="add_follower"),
+        )
         page.follow_requests.remove(requester)
         return Response({'detail': 'Request approved successfully.'}, status=HTTP_200_OK)
     else:
@@ -46,6 +59,10 @@ def approve_all_requests(page: Page) -> Response:
     requesters = page.follow_requests.all()
     for requester in requesters:
         page.followers.add(requester)
+        send_message.delay(
+            method="POST",
+            body=dict(page_id=page.pk, action="add_follower"),
+        )
         page.follow_requests.remove(requester)
     return Response({'detail': 'All requests approved successfully.'}, status=HTTP_200_OK)
 
