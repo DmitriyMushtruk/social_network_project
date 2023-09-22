@@ -2,10 +2,13 @@ import os
 import uuid
 
 from django.contrib.auth.models import AbstractUser
-from django.conf import settings
 from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+
+from social_backend.settings import AUTH_USER_MODEL
 
 
 class User(AbstractUser):
@@ -33,9 +36,16 @@ class User(AbstractUser):
 
 
 class Profile(models.Model):
-    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    avatar = models.ImageField(upload_to='media', blank=True)
-    bio = models.CharField(max_length=200, blank=True)
+    user = models.OneToOneField(AUTH_USER_MODEL, on_delete=models.CASCADE)
+    avatar = models.ImageField(default=None, upload_to='media', blank=True)
+    bio = models.CharField(default='Update your bio', max_length=200, blank=True)
+
+    @receiver(post_save, sender=User)
+    def save_or_create_profile(sender, instance, created, **kwargs):
+        if created:
+            Profile.objects.create(user=instance)
+        else:
+            instance.profile.save()
 
     def __str__(self):
         return self.user.email
