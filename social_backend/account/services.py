@@ -1,11 +1,7 @@
 from .models import User
-from page.models import Page
 from rest_framework.response import Response
-from datetime import datetime, timedelta
 
-from rest_framework.status import (
-    HTTP_200_OK,
-)
+from rest_framework.status import HTTP_200_OK
 
 
 def block_user(user: User) -> Response:
