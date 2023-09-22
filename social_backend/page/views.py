@@ -60,13 +60,13 @@ from .producer import send_message
 class TagListViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Tag.objects.all()
     serializer_class = TagListSerializer
-    permission_classes = IsAuthenticated
+    permission_classes = [IsAuthenticated]
 
 
 class UserPageListViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Page.objects.all()
     serializer_class = PageSerializer
-    permission_classes = IsAuthenticated
+    permission_classes = [IsAuthenticated]
     lookup_field = "name"
 
     def get_queryset(self):
