@@ -6,11 +6,16 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.decorators import action
 from rest_framework.viewsets import GenericViewSet
+from rest_framework.exceptions import NotFound, PermissionDenied
 
 from django.shortcuts import get_object_or_404
 
 from .models import User, Profile
-from .permissions import IsAdmin
+from .permissions import (
+    IsAdmin,
+    IsNotAuthenticated,
+    IsAuthenticatedOrReadOnly,
+    )
 
 from .serializers.user_serializer import (
     UserSerializer,
@@ -31,7 +36,7 @@ from .services import (
 
 
 class UserRegistrationAPIView(GenericAPIView):
-    permission_classes = (AllowAny,)
+    permission_classes = [IsNotAuthenticated]
     serializer_class = UserRegistrationSerializer
 
     def post(self, request, *args, **kwargs):
@@ -45,7 +50,7 @@ class UserRegistrationAPIView(GenericAPIView):
 
 
 class UserLoginAPIView(GenericAPIView):
-    permission_classes = (AllowAny,)
+    permission_classes = [AllowAny]
     serializer_class = UserLoginSerializer
 
     def post(self, request, *args, **kwargs):
@@ -60,10 +65,9 @@ class UserLoginAPIView(GenericAPIView):
 
 
 class UserLogoutAPIView(GenericAPIView):
-    permission_classes = (IsAuthenticated,)
+    permission_classes = [IsAuthenticated]
     serializer_class = UserLogoutSerializer
 
-    # serializer_class = user_serializer.UserLoginSerializer
     def post(self, request, *args, **kwargs):
         try:
             refresh_token = request.data["refresh"]
@@ -75,30 +79,46 @@ class UserLogoutAPIView(GenericAPIView):
 
 
 class UserAPIView(RetrieveUpdateAPIView):
-    permission_classes = (IsAuthenticated,)
+    permission_classes = [IsAuthenticated]
     serializer_class = UserSerializer
 
     def get_object(self):
         return self.request.user
 
 
-class UserProfileAPIView(RetrieveUpdateAPIView):
+class UserProfileAPIView(GenericAPIView):
     queryset = Profile.objects.all()
     serializer_class = ProfileSerializer
-    permission_classes = (IsAuthenticated,)
+    permission_classes = [IsAuthenticated]
 
     def get_object(self):
         return self.request.user.profile
+
+    def get(self, request):
+        profile = self.get_object()
+        serializer = self.serializer_class(profile)
+        return Response(serializer.data)
+
+    def put(self, request):
+        profile = self.get_object()
+        serializer = self.serializer_class(profile, data=request.data)
+
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class UserListView(generics.ListCreateAPIView):
     queryset = User.objects.all()
     serializer_class = UserSerializer
+    permission_classes = [IsAuthenticated]
 
 
-class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
+class UserDetailView(generics.RetrieveAPIView):
     queryset = User.objects.all()
     serializer_class = UserSerializer
+    permission_classes = [IsAuthenticatedOrReadOnly]
 
 
 class BlockUserView(UpdateModelMixin, GenericViewSet):
@@ -107,20 +127,18 @@ class BlockUserView(UpdateModelMixin, GenericViewSet):
 
     @action(
         detail=True,
-        methods=['post'],
+        methods=['put'],
     )
-    def block_user_action(self, request, username=None):
-        """This action allows users to follow or unfollow pages"""
-        request.data['username'] = username
-        user = get_object_or_404(User, username=username)
+    def block_user_action(self, request, pk=None):
+        request.data['pk'] = pk
+        user = get_object_or_404(User, pk=pk)
         return block_user(user)
 
     @action(
         detail=True,
-        methods=['post'],
+        methods=['put'],
     )
-    def unblock_user_action(self, request, username=None):
-        """This action allows users to follow or unfollow pages"""
-        request.data['username'] = username
-        user = get_object_or_404(User, username=username)
+    def unblock_user_action(self, request, pk=None):
+        request.data['pk'] = pk
+        user = get_object_or_404(User, pk=pk)
         return unblock_user(user)
