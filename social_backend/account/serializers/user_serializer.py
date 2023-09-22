@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import authenticate
-from ..models import User, Profile
+from rest_framework.validators import UniqueValidator
+from account.models import User, Profile
 from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 
 
@@ -11,12 +12,21 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
+    email = serializers.EmailField(validators=[UniqueValidator(queryset=User.objects.all())])
+    password_confirmation = serializers.CharField(write_only=True, required=True)
+
     class Meta:
         model = User
-        fields = ("id", "username", "email", "password")
+        fields = ("id", "username", "email", "password", "password_confirmation")
         extra_kwargs = {"password": {"write_only": True}}
 
+    def validate(self, data):
+        if data["password"] != data["password_confirmation"]:
+            raise serializers.ValidationError("Passwords do not match.")
+        return data
+
     def create(self, validated_data):
+        validated_data.pop("password_confirmation")
         return User.objects.create_user(**validated_data)
 
 
@@ -48,10 +58,4 @@ class UserLogoutSerializer(serializers.Serializer):
 class ProfileSerializer(UserSerializer):
     class Meta:
         model = Profile
-        fields = ("bio",)
-
-
-class ProfileAvatarSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Profile
-        fields = ("avatar",)
+        exclude = ("id", "user")
