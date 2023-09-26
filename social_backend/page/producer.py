@@ -17,11 +17,15 @@ def send_message(method, body):
     channel.queue_declare(queue='stats')
     properties = pika.BasicProperties(method)
 
+    message_data = {
+        "method": method,
+        "body": body
+    }
+
     channel.basic_publish(
         exchange='',
-        routing_key='hello',
-        body=json.dumps(body),
+        routing_key='stats',
+        body=json.dumps(message_data),
         properties=properties
     )
     connection.close()
-

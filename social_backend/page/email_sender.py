@@ -1,5 +1,4 @@
 from celery import shared_task
-from django.core.mail import EmailMessage
 from social_backend import settings
 
 from page.models import Post
@@ -22,5 +21,3 @@ def send_new_post_notification_email(post_id: int) -> None:
     from_email = settings.EMAIL_HOST_USER
 
     send_mail(subject, message, from_email, recipients_emails, fail_silently=False)
-
-

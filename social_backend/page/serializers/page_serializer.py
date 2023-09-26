@@ -39,7 +39,8 @@ class PageSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         tags_data = validated_data.pop('tags', [])
         page = Page.objects.create(**validated_data)
+
         for tag_data in tags_data:
             tag, created = Tag.objects.get_or_create(name=tag_data['name'])
             page.tags.add(tag)
-        return super().create(validated_data)
+        return page

@@ -2,6 +2,7 @@ from rest_framework.response import Response
 from account.models import User
 from page.models import Page, Post
 from django.db.models import Q
+from page.producer import send_message
 
 from rest_framework.status import (
     HTTP_403_FORBIDDEN,
@@ -46,6 +47,10 @@ def repost_post(original_post: Post, current_page: Page) -> Response:
         file=original_post.file,
         reply_to=original_post,
     )
+    send_message.delay(
+        method="POST",
+        body=dict(page_id=original_post.page.pk, action="add_repost"),
+    )
     return Response({'detail': 'Reposted successfully.'}, status=HTTP_201_CREATED)
 
 
@@ -56,9 +61,17 @@ def like_post(post: Post, current_page: Page) -> Response:
         return Response({"message": "Dislike removed, Like added"}, status=201)
     elif post.likes.filter(author=current_page).exists():
         post.likes.filter(author=current_page).delete()
+        send_message.delay(
+            method="POST",
+            body=dict(page_id=post.page.pk, action="remove_like"),
+        )
         return Response({"message": "Like removed"}, status=200)
     else:
         post.likes.create(author=current_page)
+        send_message.delay(
+            method="POST",
+            body=dict(page_id=post.page.pk, action="add_like"),
+        )
         return Response({"message": "Like added"}, status=201)
 
 
@@ -66,6 +79,10 @@ def dislike_post(post: Post, current_page: Page) -> Response:
     if post.likes.filter(author=current_page).first():
         post.likes.filter(author=current_page).delete()
         post.dislikes.create(author=current_page)
+        send_message.delay(
+            method="POST",
+            body=dict(page_id=post.page.pk, action="remove_like"),
+        )
         return Response({"message": " Like removed, Dislike added"}, status=201)
     elif post.dislikes.filter(author=current_page).exists():
         post.dislikes.filter(author=current_page).delete()
